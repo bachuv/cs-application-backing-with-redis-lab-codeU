@@ -67,8 +67,17 @@ public class JedisIndex {
 	 * @return Set of URLs.
 	 */
 	public Set<String> getURLs(String term) {
-        // FILL THIS IN!
-		return null;
+//        System.out.println("get urls");
+//        //return jedis.smembers(urlSetKey(term));
+//        Set<String> result = new HashSet<>();
+//        for(String currentURL : urlSetKeys()){
+//            if(currentURL.contains(term)){
+//                result.add(currentURL);
+//            }
+//        }
+//        return result;
+        Set<String> set = jedis.smembers(urlSetKey(term));
+        return set;
 	}
 
     /**
@@ -78,8 +87,25 @@ public class JedisIndex {
 	 * @return Map from URL to count.
 	 */
 	public Map<String, Integer> getCounts(String term) {
-        // FILL THIS IN!
-		return null;
+//        System.out.println("getCounts");
+//        //get the term's URLs then go through to get the count
+//        Set<String> urls = getURLs(term);
+//        //create the Map to return
+//        Map<String, Integer> counts = new HashMap<String, Integer>();
+//        
+//        //go through the set of urls and add the url with its count
+//        for(String url:  urls){
+//            counts.put(url, getCount(url, term));
+//        }
+//        return counts;
+//        //return null;
+        Map<String, Integer> map = new HashMap<String, Integer>();
+        Set<String> urls = getURLs(term);
+        for (String url: urls) {
+            Integer count = getCount(url, term);
+            map.put(url, count);
+        }
+        return map;
 	}
 
     /**
@@ -90,8 +116,15 @@ public class JedisIndex {
 	 * @return
 	 */
 	public Integer getCount(String url, String term) {
-        // FILL THIS IN!
-		return null;
+//        System.out.println("getCount");
+//        //.hget() return the value of the value stored at the key
+//        return Integer.parseInt(jedis.hget(termCounterKey(url), term));
+//        //return null;
+        
+        String redisKey = termCounterKey(url);
+        String count = jedis.hget(redisKey, term);
+        return new Integer(count);
+
 	}
 
 
@@ -101,9 +134,53 @@ public class JedisIndex {
 	 * @param url         URL of the page.
 	 * @param paragraphs  Collection of elements that should be indexed.
 	 */
-	public void indexPage(String url, Elements paragraphs) {
-        // FILL THIS IN!
-	}
+//	public void indexPage(String url, Elements paragraphs) {
+////        System.out.println("index page");
+////        //create a new term counter
+////        TermCounter counter = new TermCounter(url);
+////        counter.processElements(paragraphs);
+////        
+////        for(String term: counter.keySet()){
+////            jedis.hset("TermCounter:"+url, term, counter.get(term).toString());
+////            //add a TermCounter to the set associated with term
+////           jedis.sadd("URLSet:" + term, url);
+////        }
+//        
+//        
+//        TermCounter tc = new TermCounter(url);
+//        // Count all words in elements first
+//        tc.processElements(paragraphs);
+//        // Add URL associated with each word to the term counter
+//        for (String word : tc.keySet())
+//        {
+//            tc.sadd(word, tc);
+//            // Send information over to Jedis to be stored in a hash
+//            jedis.hset(termCounterKey(url), word, Integer.toString(tc.get(word)));
+//        }
+//        
+	//}
+
+    public void indexPage(String url, Elements paragraphs) {
+        TermCounter tc = new TermCounter(url);
+        tc.processElements(paragraphs);
+        this.processTermCounter(tc);
+    }
+
+/**
+ * Processes TermCounter by taking its url, terms, and term counts and adding them to Redis data structures.
+ *
+ * @param tc
+ */
+    private void processTermCounter(TermCounter tc){
+        String counterURL = tc.getLabel();
+        Transaction t = jedis.multi();
+        String termCounterKey = this.termCounterKey(counterURL);
+        for(String term : tc.keySet()){
+            t.sadd(this.urlSetKey(term), counterURL);
+            t.hset(termCounterKey, term, tc.get(term).toString());
+        }
+        t.exec();
+    }
 
 	/**
 	 * Prints the contents of the index.
